@@ -3,107 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Ball Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+            margin-top: 20px;
+        }
+        #controls {
+            margin: 20px 0;
+        }
+        #controls > * {
+            margin: 5px;
+        }
+        #divPlayers, #divBoard {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        #divPlayers > div, #divBoard > canvas {
+            margin: 10px;
+        }
+        canvas {
+            border: 2px solid #333;
+            cursor: pointer;
+            display: inline-block;
+        }
+        #gameIdHolder {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
     <h1>Ball Game!</h1>
-    <button id="btnCreate">New Game</button>
-    <button id="btnJoin">Join Game</button>
-    <input type="text" id="txtGameId">
+    <div id="controls">
+        <button id="btnCreate">New Game</button>
+        <button id="btnJoin">Join Game</button>
+        <input type="text" id="txtGameId" placeholder="Game ID">
+    </div>
     <div id="divPlayers"></div>
     <div id="divBoard"></div>
+    <div id="gameIdHolder"></div>
     <script>
-        //HTML elements
         let clientId = null;
         let gameId = null;
         let playerColor = null;
+        let ws = new WebSocket("ws://localhost:9090");
 
-        let ws = new WebSocket("ws://localhost:9090")
         const btnCreate = document.getElementById("btnCreate");
         const btnJoin = document.getElementById("btnJoin");
         const txtGameId = document.getElementById("txtGameId");
         const divPlayers = document.getElementById("divPlayers");
         const divBoard = document.getElementById("divBoard");
+        const gameIdHolder = document.getElementById("gameIdHolder");
 
-        //Writing events
         btnCreate.addEventListener("click", e => {
             const payLoad = {
                 "method": "create",
                 "clientId": clientId
             }
             ws.send(JSON.stringify(payLoad));
-        })
+        });
 
         btnJoin.addEventListener("click", e => {
-            
             if(gameId === null)
-                gameId=txtGameId.value
+                gameId = txtGameId.value
             const payLoad = {
                 "method": "join",
                 "clientId": clientId,
                 "gameId": gameId
             }
             ws.send(JSON.stringify(payLoad));
-        })
+        });
 
-        //Getting events
         ws.onmessage = message => {
-            //message.data
             const response = JSON.parse(message.data);
-            if (response.method === "connect"){
+            if (response.method === "connect") {
                 clientId = response.clientId;
-                console.log("Client id set successfully " + clientId)
+                console.log("Client id set successfully " + clientId);
             }
-            
-            //create
-            if (response.method === "create"){
+            if (response.method === "create") {
                 gameId = response.game.id;
+                gameIdHolder.textContent = "Game ID: " + response.game.id;
                 console.log("Game created with id " + response.game.id + " with " + response.game.balls + " balls!");
-                
             }
-
-            //join
-            if (response.method === "join"){
+            if (response.method === "join") {
                 const game = response.game;
-                
-                
 
-                while(divPlayers.firstChild)
-                    divPlayers.removeChild(divPlayers.firstChild)
-                
+                while (divPlayers.firstChild)
+                    divPlayers.removeChild(divPlayers.firstChild);
 
                 game.clients.forEach(c => {
                     const d = document.createElement("div");
+                    d.id = c.clientId;
                     d.style.width = "200px";
                     d.style.background = c.color;
-                    d.textContent = c.clientId;
+                    d.textContent = c.color + " | points: " + c.points;
                     divPlayers.appendChild(d);
 
-                    if(c.clientId === clientId){
+                    if (c.clientId === clientId) {
                         playerColor = c.color;
                     }
                 });
 
-                while(divBoard.firstChild)
-                    divBoard.removeChild(divBoard.firstChild)
-                for(let i=0; i<game.balls; i++){
-                    const b = document.createElement("button");
-                    b.id = "ball" + i;
-                    b.tag = i+1;
-                    b.textContent = i+1;
-                    b.style.width = "150px";
-                    b.style.height = "150px";
-                    b.addEventListener("click", e => {
-                        b.style.background = playerColor
-                        console.log(b.textContent + " <- id | color -> " + playerColor)
-                    })
-                    divBoard.appendChild(b);
+                while (divBoard.firstChild)
+                    divBoard.removeChild(divBoard.firstChild);
+                for (let i = 0; i < game.balls; i++) {
+                    const canvas = document.createElement("canvas");
+                    canvas.id = "ball" + i;
+                    canvas.width = 150;
+                    canvas.height = 150;
+                    canvas.style.background = "#fff";
+                    canvas.style.display = "inline-block";
+                    canvas.addEventListener("click", e => {
+                        if (canvas.style.background != playerColor) {
+                            const payLoad = {
+                                "method": "changeC",
+                                "clientId": clientId,
+                                "gameId": gameId,
+                                "buttonId": canvas.id
+                            }
+                            ws.send(JSON.stringify(payLoad));
+                        }
+                    });
+                    canvas.style.pointerEvents = 'none';
+                    divBoard.appendChild(canvas);
                 }
                 console.log("User joined game with id " + response.game.id + " with " + response.game.balls + " balls!");
-                
+                if(game.clients.length === 3){
+                    const countdownDiv = document.createElement('div');
+                    countdownDiv.style.position = 'fixed';
+                    countdownDiv.style.top = '50%';
+                    countdownDiv.style.left = '50%';
+                    countdownDiv.style.transform = 'translate(-50%, -50%)';
+                    countdownDiv.style.fontSize = '5em';
+                    countdownDiv.style.color = '#333';
+                    countdownDiv.style.zIndex = '1000';
+                    document.body.appendChild(countdownDiv);
+
+                    let count = 3;
+                    countdownDiv.textContent = count;
+
+                    const interval = setInterval(() => {
+                        count--;
+                        if (count > 0) {
+                            countdownDiv.textContent = count;
+                        } else {
+                            clearInterval(interval);
+                            document.body.removeChild(countdownDiv);
+                            const canvases = document.querySelectorAll('canvas');
+                            canvases.forEach(canvas => {
+                                canvas.style.pointerEvents = 'auto';
+                            });
+                            //console.log("Odliczanie zakończone, można zacząć grę.");
+                        }
+                    }, 1000);
+                }
             }
 
-        }
+            if (response.method === "changeC") {
+                const game = response.game;
+                const reqButton = document.getElementById(response.buttonId);
+                let newColor;
+                game.clients.forEach(c => {
+                    const pointsPlayerDiv = document.getElementById(c.clientId);
+                    pointsPlayerDiv.textContent = c.color + " | points: " + c.points;
+                    if (c.clientId == response.clientId)
+                        newColor = c.color;
+                });
+                reqButton.style.background = newColor;
+            }
+        };
     </script>
 </body>
 </html>

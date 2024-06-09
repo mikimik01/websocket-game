@@ -21,17 +21,8 @@ wsServer.on("request", request => {
     connection.on("open", () => console.log("Connection opened!"));
     connection.on("close", () => console.log("Connection closed"));
     connection.on("message", message => {
-        //const result = null;
-        //try {
-            const result = JSON.parse(message.utf8Data);
-        // }
-        // catch (e) {
-        //     //console.error('Invalid JSON', e);
-        //     console.log("Invalid JSON error + ");
-        //     console.log(message);
-        //     return;
-        // }
-
+               
+        const result = JSON.parse(message.utf8Data);
             
         //Request handling
         if(result.method === "create"){
@@ -59,10 +50,11 @@ wsServer.on("request", request => {
                 //sorry max play reached
                 return;
             }
-            const color = {"0": "Red", "1": "Green", "2": "Blue" }[game.clients.length]
+            const color = {"0": "red", "1": "green", "2": "blue" }[game.clients.length]
             game.clients.push({
                 "clientId": clientId,
-                "color": color
+                "color": color,
+                "points": 0
             })
 
             const payLoad = {
@@ -74,6 +66,34 @@ wsServer.on("request", request => {
             game.clients.forEach(c => {
                 clients[c.clientId].connection.send(JSON.stringify(payLoad))
             });
+        }
+
+        if(result.method === "changeC"){
+            /*const payLoad = {
+                "method": "changeC",
+                "clientId": clientId,
+                "gameId": gameId,
+                "buttonId": b.id
+            }*/
+            const game = games[result.gameId];
+            game.clients.forEach(c => {
+                if(result.clientId === c.clientId)
+                    c.points++
+            });
+            
+
+            const payLoad = {
+                "method": "changeC",
+                "buttonId" : result.buttonId,
+                "clientId" : clientId,
+                "game" : game
+            }
+            console.log(game.clients[0].points);
+            //game.clients[result.clientId].points = game.clients[result.clientId].points + 1;
+            game.clients.forEach(c => {
+                clients[c.clientId].connection.send(JSON.stringify(payLoad))
+            });
+            //console.log(payLoad);
         }
         
     });
